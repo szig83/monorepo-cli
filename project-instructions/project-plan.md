@@ -2,22 +2,32 @@
 
 ## 1. Cél
 
-Hozz létre egy parancssori (CLI) alkalmazást Node.js segítségével, amely képes futni mind Node.js, mind Bun futtatási környezetben. A CLI célja, hogy egy előre definiált monorepo projektet inicializáljon a felhasználó által megadott konfiguráció alapján.
+Hozz létre egy parancssori (CLI) alkalmazást Node.js segítségével (`#!/usr/bin/env node`), amely képes futni mind Node.js (>= 18), mind Bun futtatási környezetben. A CLI célja, hogy a `https://github.com/szig83/monorepo` projektet inicializálja a felhasználó által interaktívan megadott konfiguráció alapján.
+Az alkalmazás támogatja a többnyelvű kezelőfelületet (angol és magyar), és parancssori kapcsolókkal (`--version`, `--help`, `--lang`) is rendelkezik.
 
 ## 2. Futtatási Környezet és Csomagok
 
 * **Futtatás:** Node.js (ajánlott verzió: >= 18) és Bun.
 * **Kódolási stílus:** Használj modern JavaScript szintaxist (ESM modulok, `async/await`).
 * **Fő Csomagok:**
-    * `commander`: A CLI argumentumok és opciók kezelésére (bár a fő interakció most `inquirer`-rel történik, a jövőbeli bővíthetőséghez hasznos lehet).
+    * `commander`: A CLI argumentumok és opciók (`--version`, `--help`, `--lang`) kezelésére.
     * `inquirer`: Interaktív parancssori kérdések feltételére a felhasználónak.
     * `fs-extra`: Robusztus fájlrendszer műveletekhez (könyvtár létrehozása, fájl írása, törlés hibakezelésnél).
     * `chalk`: Színes és stílusos kimenet biztosítására a terminálban ("modern" UI).
-* **Kimenet:** Egyetlen futtatható JavaScript fájl (pl. `create-monorepo.js`), amely tartalmazza a teljes logikát. Az elejére kerüljön `#!/usr/bin/env node` shebang.
+* **Projekt Struktúra:**
+    * `create-monorepo.js`: A fő futtatható szkript.
+    * `locales/`: Könyvtár a nyelvi fájlokkal (`en.json`, `hu.json`).
+    * `package.json`: Projekt metaadatok és függőségek.
 
-## 3. Interaktív Bekérési Folyamat (`inquirer` használatával)
+## 3. Parancssori Opciók (`commander`)
 
-A CLI indításakor tedd fel sorban a következő kérdéseket:
+*   `-V, --version`: Kiírja az alkalmazás aktuális verziószámát (a `package.json`-ból) és kilép.
+*   `-h, --help`: Megjeleníti a súgó üzenetet (az elérhető opciókkal) és kilép.
+*   `-l, --lang <language>`: Megadja a CLI által használt nyelvet. Választható értékek: `en` (angol), `hu` (magyar). Alapértelmezett: `en`.
+
+## 4. Interaktív Bekérési Folyamat (`inquirer` használatával)
+
+Ha a program nem lép ki a `--version` vagy `--help` kapcsoló miatt, a kiválasztott nyelven (lásd `-l, --lang`) felteszi sorban a következő kérdéseket:
 
 1.  **Projekt neve:**
     * Típus: `input`
@@ -68,7 +78,7 @@ A CLI indításakor tedd fel sorban a következő kérdéseket:
     * Üzenet: "Melyik csomagkezelőt használjuk?"
     * Opciók: `['npm', 'bun', 'pnpm']`
 
-## 4. Végrehajtandó Feladatok Sorozata
+## 5. Végrehajtandó Feladatok Sorozata
 
 1.  **Célkönyvtár Előkészítése:**
     * A 1. prompt válasza alapján határozd meg a célkönyvtár elérési útját.
@@ -105,7 +115,7 @@ A CLI indításakor tedd fel sorban a következő kérdéseket:
             * Futtasd: `{csomagkezelő_prefix} turbo run db:restore`
     * Használj `child_process`-t, és adj visszajelzést a futtatás sikerességéről/hibájáról.
 
-## 5. Hibakezelés és Tisztítás
+## 6. Hibakezelés és Tisztítás
 
 * Minden lépésnél (könyvtár létrehozás, klónozás, fájl írás, parancsok futtatása) ellenőrizd a művelet sikerességét.
 * Bármelyik lépés hibája esetén:
@@ -113,8 +123,16 @@ A CLI indításakor tedd fel sorban a következő kérdéseket:
     * **Fontos:** Ha a CLI *létrehozta* a célkönyvtárat (azaz a 1. prompt válasza nem volt üres), akkor hiba esetén kíséreld meg a létrehozott célkönyvtár teljes tartalmának eltávolítását (`fs-extra.remove`). Írj üzenetet a takarításról.
     * Állítsd le a CLI futását hiba kóddal (`process.exit(1)`).
 
-## 6. Felhasználói Élmény (UI/UX)
+## 7. Többnyelvűség (Internationalization)
+
+*   Az alkalmazás a `locales` könyvtárban található JSON fájlok (`en.json`, `hu.json`) segítségével támogatja a többnyelvűséget.
+*   A `-l, --lang` kapcsolóval választható ki a nyelv (alapértelmezett: `en`).
+*   A `t(key, params)` segédfüggvény felelős a megfelelő nyelvi kulcsok kikereséséért és az esetleges paraméterek behelyettesítéséért.
+*   A `commander` által generált súgó és verzió információk is a kiválasztott nyelven jelennek meg.
+
+## 8. Felhasználói Élmény (UI/UX)
 
 * Használj `chalk`-ot a különböző típusú üzenetek megkülönböztetésére (pl. `chalk.blue` információkhoz, `chalk.green` sikeres műveletekhez, `chalk.yellow` figyelmeztetésekhez, `chalk.red` hibákhoz).
 * Adj egyértelmű visszajelzést minden főbb lépés megkezdéséről és befejezéséről.
 * Opcionálisan használj spinnereket (`ora` csomag) a hosszabb ideig tartó műveletek (klónozás, telepítés, scriptek futtatása) alatt a felhasználói élmény javítására.
+* Az üzenetek a felhasználó által választott nyelven jelennek meg.

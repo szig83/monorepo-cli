@@ -1,6 +1,6 @@
 {
   "name": "create-monorepo-cli",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "CLI tool to initialize a monorepo project",
   "main": "create-monorepo.js",
   "type": "module",

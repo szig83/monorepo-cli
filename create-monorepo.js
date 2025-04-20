@@ -5,57 +5,100 @@ import fs from 'fs-extra';
 import chalk from 'chalk';
 import path from 'path';
 import { execSync } from 'child_process';
-import { program } from 'commander';
+import { program, Option } from 'commander'; // Import Option here
+import { createRequire } from 'module'; // To read package.json
+import { fileURLToPath } from 'url'; // To get __dirname in ES Modules
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // --- Configuration Constants ---
-const MONOREPO_URL = 'https://github.com/szig83/monorepo';
+const MONOREPO_URL = 'https://github.com/szig83/monorepo.git';
 const DEFAULT_LANG = 'en';
-const LOCALES_DIR = path.join(path.dirname(import.meta.url.replace('file://', '')), 'locales'); // Get locales dir relative to this script
+const LOCALES_DIR = path.join(__dirname, 'locales'); // Get locales dir relative to this script
+const packageJsonPath = path.join(__dirname, 'package.json');
+const { version: cliVersion, description: cliDescriptionPackage } = require(packageJsonPath); // Rename to avoid conflict
 
 // --- Translation Helper ---
 let translations = {};
-
-async function loadTranslations(lang) {
-    const langFilePath = path.join(LOCALES_DIR, `${lang}.json`);
-    try {
-        translations = await fs.readJson(langFilePath);
-        return lang;
-    } catch (error) {
-        // Handle file not found or invalid JSON
-        return null; // Indicate failure
-    }
-}
+let currentLang = DEFAULT_LANG; // Set global currentLang
 
 // Simple translation function with placeholder replacement
-function t(key, params = {}) {
-    let text = translations[key] || key; // Fallback to key if not found
+function t(key, params = {}, fallback = null) {
+    let text = translations[key] || fallback || key; // Fallback to key if not found
     for (const [paramKey, paramValue] of Object.entries(params)) {
         text = text.replace(`{${paramKey}}`, paramValue);
     }
     return text;
 }
 
-// Main function to orchestrate the setup
-async function run(options) {
-    let currentLang = options.lang || DEFAULT_LANG;
-    let langLoaded = await loadTranslations(currentLang);
+// Helper function to load translations
+async function loadLanguage(lang) {
+    const langFilePath = path.join(LOCALES_DIR, `${lang}.json`);
+    try {
+        translations = await fs.readJson(langFilePath);
+        currentLang = lang; // Update global lang when loaded
+        return lang;
+    } catch (error) {
+        return null; // Indicate failure
+    }
+}
 
-    if (!langLoaded) {
-        console.warn(chalk.yellow(`Warning: Could not load language '${currentLang}'. Falling back to default language '${DEFAULT_LANG}'.`));
-        langLoaded = await loadTranslations(DEFAULT_LANG);
-        if (!langLoaded) {
-            // If default also fails, something is seriously wrong
-            console.error(chalk.red('FATAL: Could not load default language file. Exiting.'));
-            process.exit(1);
-        }
-        currentLang = DEFAULT_LANG;
-        // Now also show the translated warning if possible
-        if (translations.unknownLangWarning) {
-             console.warn(chalk.yellow(t('unknownLangWarning', { lang: options.lang || 'undefined', defaultLang: DEFAULT_LANG })));
+// --- Main Execution Flow --- (Using async IIFE structure)
+async function main() {
+    // 1. Determine requested language *before* configuring commander
+    let initialLang = DEFAULT_LANG;
+    const langArgIndex = process.argv.findIndex(arg => arg === '--lang' || arg === '-l');
+    if (langArgIndex !== -1 && process.argv.length > langArgIndex + 1) {
+        const requestedLangArg = process.argv[langArgIndex + 1];
+        // Basic check if it looks like a language code (e.g., not another flag)
+        if (!requestedLangArg.startsWith('-')) {
+            initialLang = requestedLangArg;
         }
     }
 
-    console.log(chalk.blue(t('startProcess')));
+    // 2. Load the determined language (or fallback to default)
+    if (!(await loadLanguage(initialLang))) {
+        // If requested lang failed, load default and warn (only if requested was not default)
+        if (initialLang !== DEFAULT_LANG) {
+            console.warn(chalk.yellow(t('unknownLangWarning', { lang: initialLang, defaultLang: DEFAULT_LANG }, DEFAULT_LANG))); // Use default t() for warning
+            if (!(await loadLanguage(DEFAULT_LANG))) {
+                // Fatal if default also fails
+                console.error(chalk.red(`FATAL: Could not load default language file (${DEFAULT_LANG}). Exiting.`));
+                process.exit(1);
+            }
+        } else {
+            // Default language failed to load initially
+            console.error(chalk.red(`FATAL: Could not load default language file (${DEFAULT_LANG}). Exiting.`));
+            process.exit(1);
+        }
+    }
+    // At this point, 'currentLang' holds the correctly loaded language.
+
+    // 3. Configure Commander *after* the correct language is loaded
+    // Disable the default help option so we can add our own localized one
+    program.helpOption(false);
+
+    program
+        .version(cliVersion, '-V, --version', t('versionOptionDesc')) // Pass version string, flags, and description
+        .description(t('cliDescription')) // Now t() has translations
+        .addOption(new Option('-l, --lang <language>', t('langOptionDesc')) // Now t() has translations
+            .default(DEFAULT_LANG)
+            .choices(['en', 'hu']))
+        // Add the help option explicitly with localized description
+        .helpOption('-h, --help', t('helpOptionDesc'))
+        .parse(process.argv);
+
+    // 4. Run the main application logic
+    // Commander exits automatically for --help / -V, so run() only executes otherwise
+    await run(); // run() no longer needs language loading logic
+}
+
+// --- Main Function --- (Becomes the core interactive part)
+async function run() {
+    console.log(chalk.blue.bold(t('startProcess')));
+
     let targetDir = '';
     let directoryCreatedByScript = false;
 
@@ -304,8 +347,11 @@ DB_PORT=${answers.dbPort}
         console.log(chalk.green(t('setupComplete')));
 
     } catch (error) {
-        // Log the generic error message first, then the specific error
-        console.error(chalk.red(t('errorDuringSetup')), error.message);
+        console.error(chalk.red(`
+${t('errorDuringSetup')}
+${error.message}`));
+        // console.error(error.stack); // Optional: for more detailed debugging
+
         // Cleanup: Remove created directory if an error occurred after its creation
         if (directoryCreatedByScript && targetDir) {
             console.log(chalk.yellow(t('attemptingCleanup', { targetDir })));
@@ -320,24 +366,9 @@ DB_PORT=${answers.dbPort}
     }
 }
 
-// --- CLI Definition ---
-program
-    .version('1.0.0') // Read from package.json later if needed
-    .description(t('cliDescription', 'CLI tool to initialize a monorepo project')) // Add key if needed
-    .option('-l, --lang <language>', t('langOptionDesc'), DEFAULT_LANG)
-    .action(run); // Pass options to run
-
-// --- Execute ---
-async function main() {
-    // Load default language initially for commander's help/description texts
-    // Commander parses options *before* the action is called
-    await loadTranslations(program.opts().lang || DEFAULT_LANG); // Load based on potential arg or default
-    program.description(t('cliDescription', 'CLI tool to initialize a monorepo project')) // Update description with loaded lang
-
-    program.parse(process.argv);
-}
-
-main().catch(err => {
-    console.error(chalk.red("Unexpected error during CLI execution:"), err);
+// --- Start the application --- 
+main().catch((error) => {
+    // Catch potential errors during the async setup in main()
+    console.error(chalk.red('An unexpected error occurred during initialization:'), error);
     process.exit(1);
 });
