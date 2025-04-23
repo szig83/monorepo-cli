@@ -330,6 +330,7 @@ DB_PORT=${answers.dbPort}
 			try {
 				execSync(dockerStartCommand, { cwd: targetDir, stdio: 'inherit' })
 				// Wait 2 seconds after Docker starts
+				console.log(chalk.yellow(t('waiting')))
 				await new Promise((resolve) => setTimeout(resolve, 2000))
 				console.log(chalk.green(t('dockerStartSuccess')))
 			} catch (dockerError) {

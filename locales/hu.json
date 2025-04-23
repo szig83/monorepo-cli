@@ -61,5 +61,6 @@
     "errorCopyWebEnv": "Figyelem: Hiba a másolás közben ({src} -> {dest}): {error}",
     "runDockerStart": "\nDocker szolgáltatások indítása...",
     "dockerStartSuccess": "Docker szolgáltatások sikeresen elindítva.",
-    "errorDockerStart": "Hiba a Docker szolgáltatások indítása közben: {error}"
+    "errorDockerStart": "Hiba a Docker szolgáltatások indítása közben: {error}",
+    "waiting": "⏳"
 }

@@ -61,5 +61,6 @@
     "errorCopyWebEnv": "Warning: Failed to copy {src} to {dest}: {error}",
     "runDockerStart": "\nStarting Docker services...",
     "dockerStartSuccess": "Docker services started successfully.",
-    "errorDockerStart": "Error starting Docker services: {error}"
+    "errorDockerStart": "Error starting Docker services: {error}",
+    "waiting": "⏳"
 }
